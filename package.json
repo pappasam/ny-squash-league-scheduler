@@ -1,0 +1,15 @@
+{
+  "name": "ny-squash-league-scheduler",
+  "version": "1.0.0",
+  "description": "Code for New York Squash League scheduling",
+  "scripts": {
+    "push": "gapps push",
+    "lint": "eslint ./src"
+  },
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "eslint": "^4.0.0",
+    "node-google-apps-script": "^1.1.5"
+  }
+}

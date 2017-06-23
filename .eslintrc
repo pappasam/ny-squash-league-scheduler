@@ -1,0 +1,9 @@
+{
+  "parserOptions": {
+    "emcaVersion": 5
+  },
+  "rules": {
+    "semi": 1,
+    "no-unused-vars": 1
+  }
+}
