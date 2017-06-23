@@ -1,4 +1,73 @@
 /**
+ * generateSchedule
+ *
+ * the main function
+ */
+function generateSchedule() {  // eslint-disable-line no-unused-vars
+  var spreadsheet = SpreadsheetApp.openById('1FO7GoOgNbyVNmzfbbKI2G8peCLxTKCghPImsNtk7blM');
+  var teamsArray = readSheetIntoArrayOfObjects(spreadsheet, 'Teams', createTeam);
+  var teamsOrganized = getOrganizedTeams(teamsArray);
+  var dummyTeam = createTeam([-1, "DUMMY", "NONE", "any"]);
+  var teamsRobin = mutateTeamsOrganizedGenRoundRobin(teamsOrganized, dummyTeam);
+
+  var datesFilter = function(dateObject) { return dateObject.do_not_play !== 'x'; };
+  var datesArray = readSheetIntoArrayOfObjects(spreadsheet, 'Dates', createDates, datesFilter);
+  var robin = teamsRobin.monday.M35;
+
+  var sheetOut = spreadsheet.getSheetByName("GeneratedSchedule");
+  for (var i = 0; i < datesArray.length; i++) {
+    var date = datesArray[i].date;
+    var dow = datesArray[i].dow;
+  }
+  for (var i = 0; i < robin.length; i++) {
+    sheetOut.appendRow(['round ' + i]);
+    for (var j = 0; j < robin[i].length; j++) {
+      var team1 = robin[i][j][0];
+      var team2 = robin[i][j][1];
+      sheetOut.appendRow([team1.id, team1.home, team2.id, team2.home, divide(team2.numberHome, team2.numberAway)]);
+    }
+  }
+  for (var i = 0; i < 10; i++) {
+    sheetOut.appendRow([datesArray[i].date, datesArray[i].do_not_play]);
+  }
+}
+
+///////////////////////////////////////////////////////////
+// Sheet row object creation functions
+///////////////////////////////////////////////////////////
+
+/**
+ * Constructor for a team object
+ * @param {Array} arrayFromTeams - an array from google sheet
+ */
+function createTeam(arrayFromTeams) {
+  return {
+    id: arrayFromTeams[0],
+    division: arrayFromTeams[1],
+    home: arrayFromTeams[2],
+    dow: arrayFromTeams[5],
+    numberHome: 0,
+    numberAway: 0
+  };
+}
+
+/**
+ * Constructor for a Dates object
+ * @param {Array} arrayFromDates - an array from google sheet
+ */
+function createDates(arrayFromDates) {
+  return {
+    date: arrayFromDates[0],
+    dow: arrayFromDates[1],
+    do_not_play: arrayFromDates[2]
+  };
+}
+
+///////////////////////////////////////////////////////////
+// Utility functions
+///////////////////////////////////////////////////////////
+
+/**
  * divide two numbers
  */
 function divide(numerator, denominator) {
@@ -8,6 +77,10 @@ function divide(numerator, denominator) {
     return numerator / denominator;
   }
 }
+
+///////////////////////////////////////////////////////////
+// Round-robin creation functions
+///////////////////////////////////////////////////////////
 
 /**
  * calculate round robin for one division of teams
@@ -45,40 +118,18 @@ function roundRobin(teamArray, dummy) {
 }
 
 /**
- * Constructor for a team object
- * @param {Array} arrayFromTeams - an array from google sheet
- */
-function createTeam(arrayFromTeams) {
-  return {
-    id: arrayFromTeams[0],
-    division: arrayFromTeams[1],
-    home: arrayFromTeams[2],
-    dow: arrayFromTeams[5],
-    numberHome: 0,
-    numberAway: 0
-  };
-}
-
-/**
- * Constructor for a Dates object
- * @param {Array} arrayFromDates - an array from google sheet
- */
-function createDates(arrayFromDates) {
-  return {
-    date: arrayFromDates[0],
-    dow: arrayFromDates[1],
-    do_not_play: arrayFromDates[2]
-  };
-}
-
-/**
  * Generates an array of objects read from a google sheet
  * @param {Spreadsheet} sheetObject - a google spreadsheet object
  * @param {string} sheetName - the name of the desired tab
  * @param {function} rowFunction - a function that unpacks an array into an object
  * @param {function} filterFunction - a function that determines whether unpacked object is ok
  */
-function readSheetIntoArrayOfObjects(sheetObject, sheetName, rowFunction, filterFunction) {
+function readSheetIntoArrayOfObjects(
+  sheetObject,
+  sheetName,
+  rowFunction,
+  filterFunction
+) {
   if (filterFunction === undefined) {
     var filterFunction = function() { return true; };
   }
@@ -135,34 +186,4 @@ function mutateTeamsOrganizedGenRoundRobin(teamsOrganized, dummy) {
     }
   }
   return teamsOrganized;
-}
-
-// main function
-function generateSchedule() {  // eslint-disable-line no-unused-vars
-  var spreadsheet = SpreadsheetApp.openById('1FO7GoOgNbyVNmzfbbKI2G8peCLxTKCghPImsNtk7blM');
-  var teamsArray = readSheetIntoArrayOfObjects(spreadsheet, 'Teams', createTeam);
-  var teamsOrganized = getOrganizedTeams(teamsArray);
-  var dummyTeam = createTeam([-1, "DUMMY", "NONE", "any"]);
-  var teamsRobin = mutateTeamsOrganizedGenRoundRobin(teamsOrganized, dummyTeam);
-
-  var datesFilter = function(dateObject) { return dateObject.do_not_play !== 'x'; };
-  var datesArray = readSheetIntoArrayOfObjects(spreadsheet, 'Dates', createDates, datesFilter);
-  var robin = teamsRobin.monday.M35;
-
-  var sheetOut = spreadsheet.getSheetByName("GeneratedSchedule");
-  for (var i = 0; i < datesArray.length; i++) {
-    var date = datesArray[i].date;
-    var dow = datesArray[i].dow;
-  }
-  for (var i = 0; i < robin.length; i++) {
-    sheetOut.appendRow(['round ' + i]);
-    for (var j = 0; j < robin[i].length; j++) {
-      var team1 = robin[i][j][0];
-      var team2 = robin[i][j][1];
-      sheetOut.appendRow([team1.id, team1.home, team2.id, team2.home, divide(team2.numberHome, team2.numberAway)]);
-    }
-  }
-  for (var i = 0; i < 10; i++) {
-    sheetOut.appendRow([datesArray[i].date, datesArray[i].do_not_play]);
-  }
 }
