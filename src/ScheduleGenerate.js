@@ -12,21 +12,46 @@ function generateSchedule() {  // eslint-disable-line no-unused-vars
 
   var datesFilter = function(dateObject) { return dateObject.do_not_play !== 'x'; };
   var datesArray = readSheetIntoArrayOfObjects(spreadsheet, 'Dates', createDates, datesFilter);
-  var robin = teamsRobin.monday.M35;
+
+  var venuesArray = readSheetIntoArrayOfObjects(spreadsheet, 'Venues', createVenue);
+  var venuesOrganized = arrayToObject(venuesArray, 'id');
+
+  var divisionsArray = readSheetIntoArrayOfObjects(spreadsheet, 'Divisions', createDivision);
+  var divisionsOrganized = arrayToObject(divisionsArray, 'id');
 
   var sheetOut = spreadsheet.getSheetByName("GeneratedSchedule");
-  for (var i = 0; i < datesArray.length; i++) {
+
+  // generate schedule for each date
+  for (var i = 0; i < 10; i++) {
     var date = datesArray[i].date;
     var dow = datesArray[i].dow;
-  }
-  for (var i = 0; i < robin.length; i++) {
-    sheetOut.appendRow(['round ' + i]);
-    for (var j = 0; j < robin[i].length; j++) {
-      var team1 = robin[i][j][0];
-      var team2 = robin[i][j][1];
-      sheetOut.appendRow([team1.id, team1.home, team2.id, team2.home, divide(team2.numberHome, team2.numberAway)]);
+    sheetOut.appendRow(['date: ' + date, 'dow: ' + dow]);
+
+    var robinDivisions = teamsRobin[dow];
+
+    // reset each venue's used capacity to 0
+    for (var j = 0; j < venuesArray; j++) {
+      venuesArray[j][dow].used = 0;
+    }
+
+    var pairings = [];
+    for (var robinDivisionKey in robinDivisions) {
+      if (robinDivisions.hasOwnProperty(robinDivisionKey)) {
+        var roundsPlayed = divisionsOrganized[robinDivisionKey].round;
+        var numberRounds = robinDivisions[robinDivisionKey].length;
+        var roundNumber = roundsPlayed % numberRounds;
+        var round = robinDivisions[robinDivisionKey][roundNumber];
+        for (var j = 0; j < round.length; j++) {
+          var team1 = round[j][0];
+          var team2 = round[j][1];
+          sheetOut.appendRow([team1.id, team1.home, team2.id, team2.home]);
+        }
+        divisionsOrganized[robinDivisionKey].round++;
+      }
     }
   }
+
+
   for (var i = 0; i < 10; i++) {
     sheetOut.appendRow([datesArray[i].date, datesArray[i].do_not_play]);
   }
@@ -35,6 +60,28 @@ function generateSchedule() {  // eslint-disable-line no-unused-vars
 ///////////////////////////////////////////////////////////
 // Sheet row object creation functions
 ///////////////////////////////////////////////////////////
+
+/**
+ * Constructor for CourtAllocation
+ * @param {number} maxCourts - the max courts allowed by a venue
+ */
+function createCourtAllocation(maxCourts) {
+  return {max: maxCourts, used: 0};
+}
+
+/**
+ * Constructor for Division object
+ * @param {Array} arrayFromDivisions
+ */
+function createVenue(arrayFromVenues) {
+  return {
+    id: arrayFromVenues[0],
+    monday: createCourtAllocation(arrayFromVenues[2]),
+    tuesday: createCourtAllocation(arrayFromVenues[3]),
+    wednesday: createCourtAllocation(arrayFromVenues[4]),
+    thursday: createCourtAllocation(arrayFromVenues[5]),
+  };
+}
 
 /**
  * Constructor for a team object
@@ -48,6 +95,17 @@ function createTeam(arrayFromTeams) {
     dow: arrayFromTeams[5],
     numberHome: 0,
     numberAway: 0
+  };
+}
+
+/**
+ * Constructor for a Division object
+ * @param {Array} arrayFromDivisions - an array from google sheet
+ */
+function createDivision(arrayFromDivisions) {
+  return {
+    id: arrayFromDivisions[0],
+    round: 0
   };
 }
 
@@ -76,6 +134,21 @@ function divide(numerator, denominator) {
   } else {
     return numerator / denominator;
   }
+}
+
+/**
+ * convert an array into a lookup object on primary key
+ *
+ * @param {Array[Object]} array - the lookup array
+ * @param {string} primaryKeyValue - the primary key name
+ * @returns {Object[string, Object]}
+ */
+function arrayToObject(array, primaryKeyValue) {
+  var returnValue = {};
+  for (var i = 0; i < array.length; i++) {
+    returnValue[array[i][primaryKeyValue]] = array[i];
+  }
+  return returnValue;
 }
 
 ///////////////////////////////////////////////////////////
