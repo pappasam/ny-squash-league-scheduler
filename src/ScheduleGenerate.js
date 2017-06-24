@@ -7,7 +7,9 @@ function generateSchedule() {  // eslint-disable-line no-unused-vars
   var spreadsheet = SpreadsheetApp.openById('1FO7GoOgNbyVNmzfbbKI2G8peCLxTKCghPImsNtk7blM');
   var teamsArray = readSheetIntoArrayOfObjects(spreadsheet, 'Teams', createTeam);
   var teamsOrganized = getOrganizedTeams(teamsArray);
-  var dummyTeam = createTeam([-1, "DUMMY", "NONE", "any"]);
+
+  var dummyTeam = createTeam([-1, "BYE", "BYE", "BYE", "BYE", "BYE"]);
+
   var teamsRobin = mutateTeamsOrganizedGenRoundRobin(teamsOrganized, dummyTeam);
 
   var datesFilter = function(dateObject) { return dateObject.do_not_play !== 'x'; };
@@ -19,22 +21,21 @@ function generateSchedule() {  // eslint-disable-line no-unused-vars
   var divisionsArray = readSheetIntoArrayOfObjects(spreadsheet, 'Divisions', createDivision);
   var divisionsOrganized = arrayToObject(divisionsArray, 'id');
 
-  var sheetOut = spreadsheet.getSheetByName("GeneratedSchedule");
+  var sheetOut = spreadsheet.getSheetByName("GenerateSchedule");
 
   // generate schedule for each date
-  for (var i = 0; i < 10; i++) {
+  for (var i = 0; i < datesArray.length; i++) {
     var date = datesArray[i].date;
     var dow = datesArray[i].dow;
-    sheetOut.appendRow(['date: ' + date, 'dow: ' + dow]);
-
     var robinDivisions = teamsRobin[dow];
 
     // reset each venue's used capacity to 0
-    for (var j = 0; j < venuesArray; j++) {
-      venuesArray[j][dow].used = 0;
+    for (var j = 0; j < venuesArray.length; j++) {
+      venuesArray[j].used = 0;
     }
 
-    var pairings = [];
+    // generate pairings
+    var pairings = []; // Array[Array[Team, Team]]
     for (var robinDivisionKey in robinDivisions) {
       if (robinDivisions.hasOwnProperty(robinDivisionKey)) {
         var roundsPlayed = divisionsOrganized[robinDivisionKey].round;
@@ -42,18 +43,54 @@ function generateSchedule() {  // eslint-disable-line no-unused-vars
         var roundNumber = roundsPlayed % numberRounds;
         var round = robinDivisions[robinDivisionKey][roundNumber];
         for (var j = 0; j < round.length; j++) {
-          var team1 = round[j][0];
-          var team2 = round[j][1];
-          sheetOut.appendRow([team1.id, team1.home, team2.id, team2.home]);
+          pairings.push(round[j]);
         }
         divisionsOrganized[robinDivisionKey].round++;
       }
     }
-  }
+    pairings.sort(pairingsSort);
 
+    // function to write a row to the GeneratedSchedule
+    var writeRow = function(homeTeam, awayTeam, dummyVenueName) {
+      if (dummyVenueName) {
+        var venue = dummyVenueName;
+      } else {
+        var venue = homeTeam.home;
+        homeTeam.numberHome++;
+        awayTeam.numberAway++;
+        venuesOrganized[venue].used++;
+      }
+      sheetOut.appendRow([
+        date, dow,
+        homeTeam.id, homeTeam.description,
+        awayTeam.id, awayTeam.description,
+        venue,
+      ]);
+    };
 
-  for (var i = 0; i < 10; i++) {
-    sheetOut.appendRow([datesArray[i].date, datesArray[i].do_not_play]);
+    // iterate over pairings, assigning home and away
+    // and then write rows to dataset
+    for (var j = 0; j < pairings.length; j++) {
+      var teamA = pairings[j][0];
+      var teamB = pairings[j][1];
+      var venueA = venuesOrganized[teamA.home];
+      var venueB = venuesOrganized[teamB.home];
+      if (teamA.id === dummyTeam.id) {
+        writeRow(teamB, teamA, 'Bye Week');
+      } else if (teamB.id === dummyTeam.id) {
+        writeRow(teamA, teamB, 'Bye Week');
+      } else if (venueA.used >= venueA[dow] && venueB.used >= venueB[dow]) {
+        writeRow(teamA, teamB, 'NO CAPACITY');
+      } else if (venueA.used >= venueA[dow]) {
+        writeRow(teamB, teamA);
+      } else if (venueB.used >= venueB[dow]) {
+        writeRow(teamA, teamB);
+      } else if (homeAwayRatio(teamA) < homeAwayRatio(teamB)) {
+        writeRow(teamA, teamB);
+      } else {
+        writeRow(teamB, teamA);
+      }
+    }
   }
 }
 
@@ -62,24 +99,17 @@ function generateSchedule() {  // eslint-disable-line no-unused-vars
 ///////////////////////////////////////////////////////////
 
 /**
- * Constructor for CourtAllocation
- * @param {number} maxCourts - the max courts allowed by a venue
- */
-function createCourtAllocation(maxCourts) {
-  return {max: maxCourts, used: 0};
-}
-
-/**
  * Constructor for Division object
  * @param {Array} arrayFromDivisions
  */
 function createVenue(arrayFromVenues) {
   return {
     id: arrayFromVenues[0],
-    monday: createCourtAllocation(arrayFromVenues[2]),
-    tuesday: createCourtAllocation(arrayFromVenues[3]),
-    wednesday: createCourtAllocation(arrayFromVenues[4]),
-    thursday: createCourtAllocation(arrayFromVenues[5]),
+    monday: arrayFromVenues[2],
+    tuesday: arrayFromVenues[3],
+    wednesday: arrayFromVenues[4],
+    thursday: arrayFromVenues[5],
+    used: 0
   };
 }
 
@@ -92,6 +122,7 @@ function createTeam(arrayFromTeams) {
     id: arrayFromTeams[0],
     division: arrayFromTeams[1],
     home: arrayFromTeams[2],
+    description: arrayFromTeams[4],
     dow: arrayFromTeams[5],
     numberHome: 0,
     numberAway: 0
@@ -259,4 +290,27 @@ function mutateTeamsOrganizedGenRoundRobin(teamsOrganized, dummy) {
     }
   }
   return teamsOrganized;
+}
+
+/**
+ * homeAwayRatio
+ *
+ * @param {Array[Team, Team]} team
+ * @returns {number} - a float
+ */
+function homeAwayRatio(team) {
+  return divide(team.numberHome, team.numberAway);
+}
+
+/**
+ * Function to sort pairings in a round,
+ * with smallest home/away ratio first and largest last
+ * @param {Array[Team, Team]} pairA
+ * @param {Array[Team, Team]} pairB
+ * @return {number}
+ */
+function pairingsSort(pairA, pairB) {
+  var maxRatioA = Math.min(homeAwayRatio(pairA[0]), homeAwayRatio(pairA[1]));
+  var maxRatioB = Math.min(homeAwayRatio(pairB[0]), homeAwayRatio(pairB[1]));
+  return maxRatioA - maxRatioB;
 }
