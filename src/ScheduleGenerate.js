@@ -68,13 +68,14 @@ function generateSchedule() {  // eslint-disable-line no-unused-vars
       ]);
     };
 
-    // iterate over pairings, assigning home and away
-    // and then write rows to dataset
+    // iterate over pairings,
     for (var j = 0; j < pairings.length; j++) {
       var teamA = pairings[j][0];
       var teamB = pairings[j][1];
       var venueA = venuesOrganized[teamA.home];
       var venueB = venuesOrganized[teamB.home];
+
+      // assign home and away, writing rows to dataset
       if (teamA.id === dummyTeam.id) {
         writeRow(teamB, teamA, 'Bye Week');
       } else if (teamB.id === dummyTeam.id) {
@@ -89,6 +90,15 @@ function generateSchedule() {  // eslint-disable-line no-unused-vars
         writeRow(teamA, teamB);
       } else {
         writeRow(teamB, teamA);
+      }
+
+      // if venue offers no space, add 1 to team's home record
+      // prevents freeloaders from always rising to top of list
+      if (teamA.id !== dummyTeam.id && venueA[dow] === 0) {
+        teamA.numberHome++;
+      }
+      if (teamB.id !== dummyTeam.id && venueB[dow] === 0) {
+        teamB.numberHome++;
       }
     }
   }
