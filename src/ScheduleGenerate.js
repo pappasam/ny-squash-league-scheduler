@@ -21,7 +21,8 @@ function generateSchedule() {  // eslint-disable-line no-unused-vars
   var divisionsArray = readSheetIntoArrayOfObjects(spreadsheet, 'Divisions', createDivision);
   var divisionsOrganized = arrayToObject(divisionsArray, 'id');
 
-  var sheetOut = spreadsheet.getSheetByName("GenerateSchedule");
+  // output values
+  var outValues = [];
 
   // generate schedule for each date
   for (var i = 0; i < datesArray.length; i++) {
@@ -60,11 +61,11 @@ function generateSchedule() {  // eslint-disable-line no-unused-vars
         awayTeam.numberAway++;
         venuesOrganized[venue].used++;
       }
-      sheetOut.appendRow([
+      outValues.push([
         date, dow,
         homeTeam.id, homeTeam.description,
         awayTeam.id, awayTeam.description,
-        venue,
+        venue
       ]);
     };
 
@@ -102,6 +103,11 @@ function generateSchedule() {  // eslint-disable-line no-unused-vars
       }
     }
   }
+  var sheetOut = spreadsheet.getSheetByName("GenerateSchedule");
+  var numRows = outValues.length;
+  var numCols = outValues[0].length;
+  var rangeOut = sheetOut.getRange(2, 1, numRows, numCols);
+  rangeOut.setValues(outValues);
 }
 
 ///////////////////////////////////////////////////////////
