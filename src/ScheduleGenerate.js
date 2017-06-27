@@ -171,7 +171,11 @@ function createDates(arrayFromDates) {
  */
 function divide(numerator, denominator) {
   if (denominator === 0) {
-    return 0;
+    if (numerator === 0) {
+      return 0;
+    } else {
+      return 99999999;
+    }
   } else {
     return numerator / denominator;
   }
@@ -320,7 +324,7 @@ function homeAwayRatio(team) {
  * @return {number}
  */
 function pairingsSort(pairA, pairB) {
-  var maxRatioA = Math.min(homeAwayRatio(pairA[0]), homeAwayRatio(pairA[1]));
-  var maxRatioB = Math.min(homeAwayRatio(pairB[0]), homeAwayRatio(pairB[1]));
-  return maxRatioA - maxRatioB;
+  var minRatioA = Math.min(homeAwayRatio(pairA[0]), homeAwayRatio(pairA[1]));
+  var minRatioB = Math.min(homeAwayRatio(pairB[0]), homeAwayRatio(pairB[1]));
+  return minRatioA - minRatioB;
 }
