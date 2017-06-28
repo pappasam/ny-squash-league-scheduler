@@ -5,21 +5,29 @@
  */
 function generateSchedule() {  // eslint-disable-line no-unused-vars
   var spreadsheet = SpreadsheetApp.openById('1FO7GoOgNbyVNmzfbbKI2G8peCLxTKCghPImsNtk7blM');
-  var teamsArray = readSheetIntoArrayOfObjects(spreadsheet, 'Teams', createTeam);
+
+  var divisionsArray = readSheetIntoArrayOfObjects(spreadsheet, 'Divisions', createDivision);
+  var divisionsOrganized = arrayToObject(divisionsArray, 'id');
+
+  var venuesArray = readSheetIntoArrayOfObjects(spreadsheet, 'Venues', createVenue);
+  var venuesOrganized = arrayToObject(venuesArray, 'id');
+
+  var teamsArray = readSheetIntoArrayOfObjects(spreadsheet, 'Teams',
+    function(teamArray) {
+      return createTeam(teamArray, divisionsOrganized, venuesOrganized);
+    }
+  );
   var teamsOrganized = getOrganizedTeams(teamsArray);
 
-  var dummyTeam = createTeam([-1, "BYE", "BYE", "BYE", "BYE", "BYE"]);
+  var dummyTeam = createTeam([-1, "BYE", "BYE", "BYE", "BYE", "BYE"],
+    divisionsOrganized,
+    venuesOrganized
+  );
 
   var teamsRobin = mutateTeamsOrganizedGenRoundRobin(teamsOrganized, dummyTeam);
 
   var datesFilter = function(dateObject) { return dateObject.do_not_play !== 'x'; };
   var datesArray = readSheetIntoArrayOfObjects(spreadsheet, 'Dates', createDates, datesFilter);
-
-  var venuesArray = readSheetIntoArrayOfObjects(spreadsheet, 'Venues', createVenue);
-  var venuesOrganized = arrayToObject(venuesArray, 'id');
-
-  var divisionsArray = readSheetIntoArrayOfObjects(spreadsheet, 'Divisions', createDivision);
-  var divisionsOrganized = arrayToObject(divisionsArray, 'id');
 
   // output values
   var outValues = [];
@@ -56,10 +64,9 @@ function generateSchedule() {  // eslint-disable-line no-unused-vars
       if (dummyVenueName) {
         var venue = dummyVenueName;
       } else {
-        var venue = homeTeam.home;
-        homeTeam.numberHome++;
-        awayTeam.numberAway++;
-        venuesOrganized[venue].used++;
+        var venue = homeTeam.venue.id;
+        homeTeam.playHome();
+        awayTeam.playAway();
       }
       outValues.push([
         date, dow,
@@ -73,8 +80,8 @@ function generateSchedule() {  // eslint-disable-line no-unused-vars
     for (var j = 0; j < pairings.length; j++) {
       var teamA = pairings[j][0];
       var teamB = pairings[j][1];
-      var venueA = venuesOrganized[teamA.home];
-      var venueB = venuesOrganized[teamB.home];
+      var venueA = teamA.venue;
+      var venueB = teamB.venue;
 
       // assign home and away, writing rows to dataset
       if (teamA.id === dummyTeam.id) {
@@ -87,7 +94,7 @@ function generateSchedule() {  // eslint-disable-line no-unused-vars
         writeRow(teamB, teamA);
       } else if (venueB.used >= venueB[dow]) {
         writeRow(teamA, teamB);
-      } else if (homeAwayRatio(teamA) < homeAwayRatio(teamB)) {
+      } else if (teamA.homeAwayRatio() < teamB.homeAwayRatio()) {
         writeRow(teamA, teamB);
       } else {
         writeRow(teamB, teamA);
@@ -130,29 +137,42 @@ function createVenue(arrayFromVenues) {
 }
 
 /**
- * Constructor for a team object
- * @param {Array} arrayFromTeams - an array from google sheet
- */
-function createTeam(arrayFromTeams) {
-  return {
-    id: arrayFromTeams[0],
-    division: arrayFromTeams[1],
-    home: arrayFromTeams[2],
-    description: arrayFromTeams[4],
-    dow: arrayFromTeams[5],
-    numberHome: 0,
-    numberAway: 0
-  };
-}
-
-/**
  * Constructor for a Division object
  * @param {Array} arrayFromDivisions - an array from google sheet
  */
 function createDivision(arrayFromDivisions) {
   return {
     id: arrayFromDivisions[0],
+    dow: arrayFromDivisions[2],
     round: 0
+  };
+}
+
+/**
+ * Constructor for a team object
+ * @param {Array} arrayFromTeams - an array from google sheet
+ */
+function createTeam(arrayFromTeams, divisionLookup, venueLookup) {
+  var divisionId = arrayFromTeams[1];
+  var venueId = arrayFromTeams[2];
+  return {
+    id: arrayFromTeams[0],
+    division: divisionLookup[divisionId],
+    venue: venueLookup[venueId],
+    description: arrayFromTeams[4],
+    dow: arrayFromTeams[5],
+    numberHome: 0,
+    numberAway: 0,
+    homeAwayRatio: function() {
+      return divide(this.numberHome, this.numberAway);
+    },
+    playHome: function() {
+      this.numberHome++;
+      this.venue.used++;
+    },
+    playAway: function() {
+      this.numberAway++;
+    }
   };
 }
 
@@ -279,13 +299,15 @@ function getOrganizedTeams(teamsArray) {
   var returnValue = {};
   for (var i = 0; i < teamsArray.length; i++) {
     var team = teamsArray[i];
-    if (returnValue[team.dow] === undefined) {
-      returnValue[team.dow] = {};
+    var dow = team.division.dow;
+    var divisionId = team.division.id;
+    if (returnValue[dow] === undefined) {
+      returnValue[dow] = {};
     }
-    if (returnValue[team.dow][team.division] === undefined) {
-      returnValue[team.dow][team.division] = [];
+    if (returnValue[dow][divisionId] === undefined) {
+      returnValue[dow][divisionId] = [];
     }
-    returnValue[team.dow][team.division].push(team);
+    returnValue[dow][divisionId].push(team);
   }
   return returnValue;
 }
@@ -313,16 +335,6 @@ function mutateTeamsOrganizedGenRoundRobin(teamsOrganized, dummy) {
 }
 
 /**
- * homeAwayRatio
- *
- * @param {Array[Team, Team]} team
- * @returns {number} - a float
- */
-function homeAwayRatio(team) {
-  return divide(team.numberHome, team.numberAway);
-}
-
-/**
  * Function to sort pairings in a round,
  * with smallest home/away ratio first and largest last
  * @param {Array[Team, Team]} pairA
@@ -330,7 +342,7 @@ function homeAwayRatio(team) {
  * @return {number}
  */
 function pairingsSort(pairA, pairB) {
-  var minRatioA = Math.min(homeAwayRatio(pairA[0]), homeAwayRatio(pairA[1]));
-  var minRatioB = Math.min(homeAwayRatio(pairB[0]), homeAwayRatio(pairB[1]));
+  var minRatioA = Math.min(pairA[0].homeAwayRatio(), pairA[1].homeAwayRatio());
+  var minRatioB = Math.min(pairB[0].homeAwayRatio(), pairB[1].homeAwayRatio());
   return minRatioA - minRatioB;
 }
