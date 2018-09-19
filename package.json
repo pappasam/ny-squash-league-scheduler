@@ -10,6 +10,8 @@
   "license": "ISC",
   "devDependencies": {
     "eslint": "^4.0.0",
-    "node-google-apps-script": "^1.1.5"
+    "node-google-apps-script": "^1.1.5",
+    "tern": "^0.22.2",
+    "tern-googleappsscript": "^1.0.1"
   }
 }
